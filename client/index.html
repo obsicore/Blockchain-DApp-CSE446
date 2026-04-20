@@ -277,7 +277,8 @@ const CONTRACT_ABI = [
   {"inputs":[{"internalType":"uint256","name":"missionId","type":"uint256"}],"name":"raiseDispute","outputs":[],"stateMutability":"nonpayable","type":"function"},
   {"inputs":[{"internalType":"uint256","name":"missionId","type":"uint256"},{"internalType":"bool","name":"agencyFault","type":"bool"}],"name":"resolveDispute","outputs":[],"stateMutability":"nonpayable","type":"function"},
   {"inputs":[{"internalType":"uint256","name":"amount","type":"uint256"}],"name":"withdrawFees","outputs":[],"stateMutability":"nonpayable","type":"function"},
-  {"inputs":[{"internalType":"uint256","name":"missionId","type":"uint256"}],"name":"getMission","outputs":[{"internalType":"uint256","name":"id","type":"uint256"},{"internalType":"string","name":"category","type":"string"},{"internalType":"string","name":"region","type":"string"},{"internalType":"uint256","name":"maxBudget","type":"uint256"},{"internalType":"address","name":"donor","type":"address"},{"internalType":"address","name":"selectedAgency","type":"address"},{"internalType":"uint256","name":"selectedPledge","type":"uint256"},{"internalType":"uint256","name":"escrowedAmount","type":"uint256"},{"internalType":"uint8","name":"status","type":"uint8"},{"internalType":"bool","name":"escrowDeposited","type":"bool"},{"internalType":"bool","name":"deliveredByAgency","type":"bool"},{"internalType":"uint256","name":"pledgeCount","type":"uint256"}],"stateMutability":"view","type":"function"},
+  {"inputs":[{"internalType":"uint256","name":"missionId","type":"uint256"}],"name":"getMissionDetails","outputs":[{"internalType":"uint256","name":"id","type":"uint256"},{"internalType":"string","name":"category","type":"string"},{"internalType":"string","name":"region","type":"string"},{"internalType":"uint256","name":"maxBudget","type":"uint256"},{"internalType":"address","name":"donor","type":"address"}],"stateMutability":"view","type":"function"},
+  {"inputs":[{"internalType":"uint256","name":"missionId","type":"uint256"}],"name":"getMissionState","outputs":[{"internalType":"address","name":"selectedAgency","type":"address"},{"internalType":"uint256","name":"selectedPledge","type":"uint256"},{"internalType":"uint256","name":"escrowedAmount","type":"uint256"},{"internalType":"uint8","name":"status","type":"uint8"},{"internalType":"bool","name":"escrowDeposited","type":"bool"},{"internalType":"bool","name":"deliveredByAgency","type":"bool"},{"internalType":"uint256","name":"pledgeCount","type":"uint256"}],"stateMutability":"view","type":"function"},
   {"inputs":[{"internalType":"uint256","name":"missionId","type":"uint256"},{"internalType":"uint256","name":"pledgeIndex","type":"uint256"}],"name":"getPledge","outputs":[{"internalType":"address","name":"agency","type":"address"},{"internalType":"uint256","name":"amount","type":"uint256"}],"stateMutability":"view","type":"function"}
 ];
 
@@ -396,23 +397,24 @@ async function loadMissions() {
     const count = (await contract.missionCount()).toNumber();
     const missions = [];
     for (let i = 0; i < count; i++) {
-      const m = await contract.getMission(i);
+      const details = await contract.getMissionDetails(i);
+      const state = await contract.getMissionState(i);
       missions.push({
-        id: m.id.toNumber(),
-        category: m.category,
-        region: m.region,
-        maxBudgetWei: m.maxBudget,
-        maxBudget: ethers.utils.formatEther(m.maxBudget),
-        donor: m.donor,
-        selectedAgency: m.selectedAgency,
-        selectedPledgeWei: m.selectedPledge,
-        selectedPledge: ethers.utils.formatEther(m.selectedPledge),
-        escrowedAmountWei: m.escrowedAmount,
-        escrowedAmount: ethers.utils.formatEther(m.escrowedAmount),
-        status: Number(m.status),
-        escrowDeposited: m.escrowDeposited,
-        deliveredByAgency: m.deliveredByAgency,
-        pledgeCount: m.pledgeCount.toNumber()
+        id: details.id.toNumber(),
+        category: details.category,
+        region: details.region,
+        maxBudgetWei: details.maxBudget,
+        maxBudget: ethers.utils.formatEther(details.maxBudget),
+        donor: details.donor,
+        selectedAgency: state.selectedAgency,
+        selectedPledgeWei: state.selectedPledge,
+        selectedPledge: ethers.utils.formatEther(state.selectedPledge),
+        escrowedAmountWei: state.escrowedAmount,
+        escrowedAmount: ethers.utils.formatEther(state.escrowedAmount),
+        status: Number(state.status),
+        escrowDeposited: state.escrowDeposited,
+        deliveredByAgency: state.deliveredByAgency,
+        pledgeCount: state.pledgeCount.toNumber()
       });
     }
     missions.sort((a, b) => parseFloat(b.maxBudget) - parseFloat(a.maxBudget));

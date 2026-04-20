@@ -331,7 +331,7 @@ contract HumanitarianAidReliefEscrow {
         emit FeesWithdrawn(msg.sender, amount);
     }
 
-    function getMission(uint256 missionId)
+    function getMissionDetails(uint256 missionId)
         external
         view
         validMission(missionId)
@@ -340,7 +340,24 @@ contract HumanitarianAidReliefEscrow {
             string memory category,
             string memory region,
             uint256 maxBudget,
-            address donor,
+            address donor
+        )
+    {
+        Mission storage m = missions[missionId];
+        return (
+            m.id,
+            m.category,
+            m.region,
+            m.maxBudget,
+            m.donor
+        );
+    }
+
+    function getMissionState(uint256 missionId)
+        external
+        view
+        validMission(missionId)
+        returns (
             address selectedAgency,
             uint256 selectedPledge,
             uint256 escrowedAmount,
@@ -352,11 +369,6 @@ contract HumanitarianAidReliefEscrow {
     {
         Mission storage m = missions[missionId];
         return (
-            m.id,
-            m.category,
-            m.region,
-            m.maxBudget,
-            m.donor,
             m.selectedAgency,
             m.selectedPledge,
             m.escrowedAmount,
