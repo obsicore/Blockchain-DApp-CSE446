@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Humanitarian Aid Relief Escrow DApp</title>
+<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; }
+header { background: #1e293b; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; gap: 1rem; flex-wrap: wrap; }
+h1 { color: #38bdf8; font-size: 1.2rem; }
+.btn { padding: 0.55rem 1rem; border: none; border-radius: 8px; cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: all 0.2s; }
+.btn:hover { transform: translateY(-1px); }
+.btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+.btn-primary { background: #38bdf8; color: #0f172a; }
+.btn-primary:hover { background: #0ea5e9; }
+.btn-success { background: #22c55e; color: white; }
+.btn-success:hover { background: #16a34a; }
+.btn-danger { background: #ef4444; color: white; }
+.btn-danger:hover { background: #dc2626; }
+.btn-warning { background: #f59e0b; color: white; }
+.btn-warning:hover { background: #d97706; }
+.btn-muted { background: #334155; color: #e2e8f0; }
+.card { background: #1e293b; border-radius: 12px; padding: 1.25rem; margin: 1rem 0; border: 1px solid #334155; }
+.badge { display: inline-block; padding: 0.22rem 0.6rem; border-radius: 20px; font-size: 0.75rem; font-weight: 700; }
+.badge-pending { background: #fbbf24; color: #1c1917; }
+.badge-transit { background: #a78bfa; color: #1c1917; }
+.badge-delivered { background: #34d399; color: #1c1917; }
+.badge-disputed { background: #f87171; color: white; }
+.badge-resolved { background: #6b7280; color: white; }
+.badge-escrow { background: #22c55e; color: white; }
+.badge-warn { background: #f59e0b; color: white; }
+input, select { width: 100%; padding: 0.65rem; background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: #e2e8f0; margin: 0.35rem 0 0.85rem; font-size: 0.9rem; }
+label { font-size: 0.85rem; color: #94a3b8; display: block; margin-top: 0.35rem; }
+.container { max-width: 1100px; margin: 0 auto; padding: 1rem 2rem 2rem; }
+.tabs { display: flex; gap: 0.5rem; margin: 1rem 0; flex-wrap: wrap; }
+.tab { padding: 0.55rem 1rem; border-radius: 8px; cursor: pointer; border: 1px solid #334155; background: #1e293b; color: #94a3b8; font-size: 0.9rem; }
+.tab.active { background: #38bdf8; color: #0f172a; border-color: #38bdf8; }
+.section { display: none; }
+.section.active { display: block; }
+.wallet-info { font-size: 0.85rem; color: #94a3b8; }
+.rep-score { color: #fbbf24; font-weight: 700; }
+.mission-card { border-left: 4px solid #38bdf8; }
+.mission-card.disputed { border-left-color: #ef4444; }
+.flex { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.flex-between { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.6rem; }
+.filters { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.filters > div { min-width: 180px; }
+#status-bar { background: #0f172a; padding: 0.5rem 2rem; font-size: 0.8rem; color: #94a3b8; border-bottom: 1px solid #1e293b; }
+.alert { padding: 0.85rem 1rem; border-radius: 8px; margin: 0.5rem 0; font-size: 0.9rem; }
+.alert-success { background: #064e3b; color: #6ee7b7; border: 1px solid #065f46; }
+.alert-error { background: #450a0a; color: #fca5a5; border: 1px solid #7f1d1d; }
+.alert-info { background: #082f49; color: #7dd3fc; border: 1px solid #0c4a6e; }
+.pledge-item { background: #0f172a; border-radius: 8px; padding: 0.9rem; margin: 0.45rem 0; display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; }
+.loading { text-align: center; color: #94a3b8; padding: 1.5rem; }
+h2 { color: #38bdf8; margin-bottom: 0.5rem; }
+.treasury-box { background: #0f172a; border-radius: 12px; padding: 1.3rem; text-align: center; margin: 1rem 0; border: 1px solid #334155; }
+.treasury-amount { font-size: 2rem; color: #22c55e; font-weight: 700; }
+.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+.modal-overlay { display: none; position: fixed; inset: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.72); z-index: 999; align-items: center; justify-content: center; padding: 1rem; }
+.small { font-size: 0.82rem; color: #94a3b8; }
+.code { font-family: ui-monospace, SFMono-Regular, monospace; color: #93c5fd; }
+@media (max-width: 640px) { .container { padding: 1rem; } header { padding: 1rem; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>🌍 Humanitarian Aid Relief Escrow DApp</h1>
+  <button class="btn btn-primary" id="connectBtn" onclick="connectWallet()">🦊 Connect MetaMask</button>
+</header>
+<div id="status-bar">Not connected. Deploy the updated contract, paste its address below in the code, then connect MetaMask.</div>
+
+<div class="container">
+  <div id="not-connected" class="card" style="text-align:center; padding:2.5rem;">
+    <h2>Welcome</h2>
+    <p style="color:#94a3b8; margin:1rem 0;">This DApp reads users, missions, pledges, reputation, and fees directly from the blockchain.</p>
+    <p class="small" style="margin-bottom:1rem;">After redeploying the updated contract, replace the contract address in <span class="code">CONTRACT_ADDRESS</span> inside this file.</p>
+    <button class="btn btn-primary" onclick="connectWallet()">🦊 Connect MetaMask</button>
+  </div>
+
+  <div id="app" style="display:none;">
+    <div id="register-section" class="card" style="display:none;">
+      <h2>📝 Register Your Account</h2>
+      <p class="small" style="margin-bottom:1rem;">Wallet address is pulled automatically from MetaMask. Relief Agencies start with a reputation score of 100.</p>
+      <label>Your Name</label>
+      <input type="text" id="reg-name" placeholder="Enter your name">
+      <label>Your Role</label>
+      <select id="reg-role">
+        <option value="1">Donor</option>
+        <option value="2">Relief Agency</option>
+      </select>
+      <div id="reg-alert"></div>
+      <button class="btn btn-primary" onclick="registerUser()">Register</button>
+    </div>
+
+    <div id="user-info" class="card" style="display:none;">
+      <div class="flex-between">
+        <div>
+          <strong id="user-name-display">--</strong>
+          <span id="user-role-display" class="badge" style="margin-left:0.5rem; background:#60a5fa; color:#0f172a;"></span>
+          <span style="margin-left:1rem; font-size:0.85rem; color:#94a3b8;">Reputation: <span class="rep-score" id="user-rep-display">--</span></span>
+        </div>
+        <div class="wallet-info" id="wallet-display">--</div>
+      </div>
+    </div>
+
+    <div class="tabs" id="main-tabs">
+      <div class="tab active" onclick="showTab('mission-feed', this)">🌐 Mission Feed</div>
+      <div class="tab" onclick="showTab('donor-panel', this)" id="donor-tab" style="display:none;">💰 Donor Panel</div>
+      <div class="tab" onclick="showTab('agency-panel', this)" id="agency-tab" style="display:none;">🚑 Agency Panel</div>
+      <div class="tab" onclick="showTab('arbiter-panel', this)" id="arbiter-tab" style="display:none;">⚖️ Arbiter Panel</div>
+    </div>
+
+    <div class="section active" id="mission-feed">
+      <div class="card">
+        <div class="flex-between">
+          <h2>🌐 Pending Relief Missions</h2>
+          <button class="btn btn-primary" onclick="loadMissions()" style="font-size:0.8rem; padding:0.4rem 0.8rem;">🔄 Refresh</button>
+        </div>
+        <p class="small" style="margin-bottom:1rem;">Sorted by highest max budget first. Filter by category or region.</p>
+        <div class="filters">
+          <div>
+            <label>Category</label>
+            <select id="filter-category" onchange="renderMissions()">
+              <option value="">All Categories</option>
+              <option>Medical</option>
+              <option>Food</option>
+              <option>Shelter</option>
+              <option>Water</option>
+              <option>Evacuation</option>
+              <option>Disaster Relief</option>
+            </select>
+          </div>
+          <div>
+            <label>Region</label>
+            <select id="filter-region" onchange="renderMissions()">
+              <option value="">All Regions</option>
+            </select>
+          </div>
+        </div>
+        <div id="missions-list"><div class="loading">Connect wallet to load missions...</div></div>
+      </div>
+    </div>
+
+    <div class="section" id="donor-panel">
+      <div class="card">
+        <h2>📋 Post a New Mission</h2>
+        <div class="grid-2">
+          <div>
+            <label>Category</label>
+            <select id="mission-category">
+              <option>Medical</option>
+              <option>Food</option>
+              <option>Shelter</option>
+              <option>Water</option>
+              <option>Evacuation</option>
+              <option>Disaster Relief</option>
+            </select>
+          </div>
+          <div>
+            <label>Region</label>
+            <input type="text" id="mission-region" placeholder="e.g. Gaza, Kharkiv, Northern Sudan">
+          </div>
+        </div>
+        <label>Max Budget (ETH)</label>
+        <input type="number" id="mission-budget" placeholder="e.g. 2" step="0.001" min="0.001">
+        <div id="post-alert"></div>
+        <button class="btn btn-primary" onclick="postMission()">📤 Post Mission</button>
+      </div>
+
+      <div class="card">
+        <div class="flex-between">
+          <h2>📂 My Missions</h2>
+          <button class="btn btn-primary" onclick="loadDonorMissions()" style="font-size:0.8rem; padding:0.4rem 0.8rem;">🔄 Refresh</button>
+        </div>
+        <div id="donor-missions-list"><div class="loading">Loading...</div></div>
+      </div>
+    </div>
+
+    <div class="section" id="agency-panel">
+      <div class="card">
+        <div class="flex-between">
+          <h2>🔍 Pending Missions Available to Pledge</h2>
+          <button class="btn btn-primary" onclick="loadAgencyMissions()" style="font-size:0.8rem; padding:0.4rem 0.8rem;">🔄 Refresh</button>
+        </div>
+        <div id="agency-missions-list"><div class="loading">Loading...</div></div>
+      </div>
+      <div class="card">
+        <div class="flex-between">
+          <h2>🚚 My In-Transit Missions</h2>
+          <button class="btn btn-primary" onclick="loadAgencyActiveMissions()" style="font-size:0.8rem; padding:0.4rem 0.8rem;">🔄 Refresh</button>
+        </div>
+        <div id="agency-active-list"><div class="loading">Loading...</div></div>
+      </div>
+    </div>
+
+    <div class="section" id="arbiter-panel">
+      <div class="treasury-box">
+        <div style="color:#94a3b8; font-size:0.9rem; margin-bottom:0.45rem;">💼 Total Operational Fees Collected</div>
+        <div class="treasury-amount" id="treasury-balance">-- ETH</div>
+        <p class="small" style="margin-top:0.5rem;">This shows collected platform fees only, not donor escrow funds.</p>
+      </div>
+
+      <div class="card">
+        <h2>🏦 Withdraw Collected Fees</h2>
+        <label>Amount to Withdraw (ETH)</label>
+        <input type="number" id="withdraw-fees-amount" min="0.001" step="0.001" placeholder="e.g. 0.05">
+        <div class="flex">
+          <button class="btn btn-warning" onclick="withdrawFees()">Withdraw Fees</button>
+          <button class="btn btn-muted" onclick="withdrawAllFees()">Withdraw All</button>
+        </div>
+        <div id="withdraw-alert"></div>
+      </div>
+
+      <div class="card">
+        <div class="flex-between">
+          <h2>⚠️ Disputed Missions</h2>
+          <button class="btn btn-primary" onclick="loadDisputedMissions()" style="font-size:0.8rem; padding:0.4rem 0.8rem;">🔄 Refresh</button>
+        </div>
+        <div id="disputed-list"><div class="loading">Loading...</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="pledge-modal">
+  <div class="card" style="width:420px; max-width:92%;">
+    <h2>💰 Submit a Pledge</h2>
+    <p class="small" style="margin-bottom:1rem;">
+      Mission #<span id="pledge-mission-id">--</span> | Region: <strong style="color:#38bdf8;"><span id="pledge-region">--</span></strong> | Max Budget: <strong style="color:#38bdf8;"><span id="pledge-max-budget">--</span> ETH</strong>
+    </p>
+    <label>Your Operational Cost / Bid (ETH)</label>
+    <input type="number" id="pledge-amount" placeholder="e.g. 1.5" step="0.001" min="0.001">
+    <div id="pledge-alert"></div>
+    <div class="flex">
+      <button class="btn btn-primary" onclick="submitPledge()">Submit Pledge</button>
+      <button class="btn btn-muted" onclick="closePledgeModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="pledges-modal">
+  <div class="card" style="width:680px; max-width:92%; max-height:80vh; overflow-y:auto;">
+    <div class="flex-between" style="margin-bottom:1rem;">
+      <h2>📑 Pledges for Mission #<span id="pledges-modal-mission-id">--</span></h2>
+      <button class="btn btn-danger" onclick="closePledgesModal()">✕ Close</button>
+    </div>
+    <p class="small" style="margin-bottom:1rem;">Selecting a pledge triggers one MetaMask payment transaction that both selects the agency and funds the exact bid amount into escrow.</p>
+    <div id="pledges-modal-content"><div class="loading">Loading pledges...</div></div>
+  </div>
+</div>
+
+<script>
+const CONTRACT_ADDRESS = "PASTE_DEPLOYED_CONTRACT_ADDRESS_HERE";
+
+const CONTRACT_ABI = [
+  {"anonymous":false,"inputs":[{"indexed":true,"internalType":"uint256","name":"missionId","type":"uint256"},{"indexed":true,"internalType":"address","name":"donor","type":"address"},{"indexed":false,"internalType":"string","name":"category","type":"string"},{"indexed":false,"internalType":"string","name":"region","type":"string"},{"indexed":false,"internalType":"uint256","name":"maxBudget","type":"uint256"}],"name":"MissionPosted","type":"event"},
+  {"anonymous":false,"inputs":[{"indexed":true,"internalType":"uint256","name":"missionId","type":"uint256"},{"indexed":true,"internalType":"address","name":"agency","type":"address"},{"indexed":false,"internalType":"uint256","name":"amount","type":"uint256"}],"name":"Pledged","type":"event"},
+  {"anonymous":false,"inputs":[{"indexed":true,"internalType":"uint256","name":"missionId","type":"uint256"},{"indexed":true,"internalType":"address","name":"agency","type":"address"},{"indexed":false,"internalType":"uint256","name":"amount","type":"uint256"}],"name":"MissionFunded","type":"event"},
+  {"anonymous":false,"inputs":[{"indexed":true,"internalType":"uint256","name":"missionId","type":"uint256"},{"indexed":true,"internalType":"address","name":"agency","type":"address"}],"name":"DeliveredMarked","type":"event"},
+  {"anonymous":false,"inputs":[{"indexed":true,"internalType":"uint256","name":"missionId","type":"uint256"},{"indexed":true,"internalType":"address","name":"donor","type":"address"},{"indexed":true,"internalType":"address","name":"agency","type":"address"},{"indexed":false,"internalType":"uint256","name":"payout","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"fee","type":"uint256"}],"name":"DeliveryApproved","type":"event"},
+  {"anonymous":false,"inputs":[{"indexed":true,"internalType":"uint256","name":"missionId","type":"uint256"},{"indexed":true,"internalType":"address","name":"donor","type":"address"}],"name":"MissionDisputed","type":"event"},
+  {"anonymous":false,"inputs":[{"indexed":true,"internalType":"uint256","name":"missionId","type":"uint256"},{"indexed":false,"internalType":"bool","name":"agencyFault","type":"bool"},{"indexed":false,"internalType":"uint256","name":"donorRefund","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"agencyPayout","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"fee","type":"uint256"}],"name":"DisputeResolved","type":"event"},
+  {"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"arbiter","type":"address"},{"indexed":false,"internalType":"uint256","name":"amount","type":"uint256"}],"name":"FeesWithdrawn","type":"event"},
+  {"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"user","type":"address"},{"indexed":false,"internalType":"string","name":"name","type":"string"},{"indexed":false,"internalType":"uint8","name":"role","type":"uint8"}],"name":"UserRegistered","type":"event"},
+  {"inputs":[],"name":"unArbiter","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},
+  {"inputs":[],"name":"missionCount","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+  {"inputs":[],"name":"collectedFees","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+  {"inputs":[{"internalType":"address","name":"","type":"address"}],"name":"users","outputs":[{"internalType":"string","name":"name","type":"string"},{"internalType":"uint8","name":"role","type":"uint8"},{"internalType":"address","name":"wallet","type":"address"},{"internalType":"uint256","name":"reputation","type":"uint256"},{"internalType":"bool","name":"registered","type":"bool"}],"stateMutability":"view","type":"function"},
+  {"inputs":[{"internalType":"string","name":"_name","type":"string"},{"internalType":"uint8","name":"_role","type":"uint8"}],"name":"register","outputs":[],"stateMutability":"nonpayable","type":"function"},
+  {"inputs":[{"internalType":"string","name":"_category","type":"string"},{"internalType":"string","name":"_region","type":"string"},{"internalType":"uint256","name":"_maxBudget","type":"uint256"}],"name":"postMission","outputs":[],"stateMutability":"nonpayable","type":"function"},
+  {"inputs":[{"internalType":"uint256","name":"missionId","type":"uint256"},{"internalType":"uint256","name":"_amount","type":"uint256"}],"name":"pledgeToMission","outputs":[],"stateMutability":"nonpayable","type":"function"},
+  {"inputs":[{"internalType":"uint256","name":"missionId","type":"uint256"},{"internalType":"uint256","name":"pledgeIndex","type":"uint256"}],"name":"fundMission","outputs":[],"stateMutability":"payable","type":"function"},
+  {"inputs":[{"internalType":"uint256","name":"missionId","type":"uint256"}],"name":"markDelivered","outputs":[],"stateMutability":"nonpayable","type":"function"},
+  {"inputs":[{"internalType":"uint256","name":"missionId","type":"uint256"}],"name":"approveDelivery","outputs":[],"stateMutability":"nonpayable","type":"function"},
+  {"inputs":[{"internalType":"uint256","name":"missionId","type":"uint256"}],"name":"raiseDispute","outputs":[],"stateMutability":"nonpayable","type":"function"},
+  {"inputs":[{"internalType":"uint256","name":"missionId","type":"uint256"},{"internalType":"bool","name":"agencyFault","type":"bool"}],"name":"resolveDispute","outputs":[],"stateMutability":"nonpayable","type":"function"},
+  {"inputs":[{"internalType":"uint256","name":"amount","type":"uint256"}],"name":"withdrawFees","outputs":[],"stateMutability":"nonpayable","type":"function"},
+  {"inputs":[{"internalType":"uint256","name":"missionId","type":"uint256"}],"name":"getMission","outputs":[{"internalType":"uint256","name":"id","type":"uint256"},{"internalType":"string","name":"category","type":"string"},{"internalType":"string","name":"region","type":"string"},{"internalType":"uint256","name":"maxBudget","type":"uint256"},{"internalType":"address","name":"donor","type":"address"},{"internalType":"address","name":"selectedAgency","type":"address"},{"internalType":"uint256","name":"selectedPledge","type":"uint256"},{"internalType":"uint256","name":"escrowedAmount","type":"uint256"},{"internalType":"uint8","name":"status","type":"uint8"},{"internalType":"bool","name":"escrowDeposited","type":"bool"},{"internalType":"bool","name":"deliveredByAgency","type":"bool"},{"internalType":"uint256","name":"pledgeCount","type":"uint256"}],"stateMutability":"view","type":"function"},
+  {"inputs":[{"internalType":"uint256","name":"missionId","type":"uint256"},{"internalType":"uint256","name":"pledgeIndex","type":"uint256"}],"name":"getPledge","outputs":[{"internalType":"address","name":"agency","type":"address"},{"internalType":"uint256","name":"amount","type":"uint256"}],"stateMutability":"view","type":"function"}
+];
+
+let provider, signer, contract;
+let currentAccount = null;
+let currentUser = null;
+let allMissions = [];
+let activePledgeMissionId = null;
+
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+const STATUS_LABELS = ["Pending","In Transit","Delivered","Disputed","Resolved"];
+const STATUS_BADGES = ["badge-pending","badge-transit","badge-delivered","badge-disputed","badge-resolved"];
+const ROLE_LABELS = ["None","Donor","Relief Agency","UN Arbiter"];
+
+function shortAddr(addr) {
+  if (!addr || addr === ZERO_ADDRESS) return "--";
+  return `${addr.slice(0, 8)}...${addr.slice(-6)}`;
+}
+
+function showAlert(el, type, msg) {
+  const cls = type === 'error' ? 'alert-error' : (type === 'info' ? 'alert-info' : 'alert-success');
+  el.innerHTML = `<div class="alert ${cls}">${msg}</div>`;
+}
+
+async function connectWallet() {
+  if (!window.ethereum) {
+    alert("MetaMask not found. Please install it.");
+    return;
+  }
+  if (!ethers.utils.isAddress(CONTRACT_ADDRESS)) {
+    alert("Please paste your newly deployed contract address into CONTRACT_ADDRESS inside client/index.html first.");
+    return;
+  }
+  try {
+    provider = new ethers.providers.Web3Provider(window.ethereum);
+    await provider.send("eth_requestAccounts", []);
+    signer = provider.getSigner();
+    currentAccount = await signer.getAddress();
+    contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+
+    document.getElementById('connectBtn').textContent = `${currentAccount.slice(0,6)}...${currentAccount.slice(-4)}`;
+    document.getElementById('not-connected').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    document.getElementById('status-bar').textContent = `✅ Connected: ${currentAccount} | Network: Ganache / MetaMask`;
+
+    await loadUserInfo();
+    await loadMissions();
+    setupEventListeners();
+
+    window.ethereum.on('accountsChanged', () => location.reload());
+    window.ethereum.on('chainChanged', () => location.reload());
+  } catch (e) {
+    alert(`Connection failed: ${e.message}`);
+  }
+}
+
+async function loadUserInfo() {
+  const user = await contract.users(currentAccount);
+  const arbiter = await contract.unArbiter();
+  const isArbiter = currentAccount.toLowerCase() === arbiter.toLowerCase();
+
+  if (!user.registered) {
+    document.getElementById('register-section').style.display = 'block';
+    document.getElementById('user-info').style.display = 'none';
+    return;
+  }
+
+  currentUser = {
+    name: user.name,
+    role: Number(user.role),
+    reputation: user.reputation.toNumber(),
+    isArbiter
+  };
+
+  document.getElementById('register-section').style.display = 'none';
+  document.getElementById('user-info').style.display = 'block';
+  document.getElementById('user-name-display').textContent = currentUser.name;
+  document.getElementById('user-role-display').textContent = isArbiter ? 'UN Arbiter' : ROLE_LABELS[currentUser.role];
+  document.getElementById('user-rep-display').textContent = currentUser.reputation;
+  document.getElementById('wallet-display').textContent = shortAddr(currentAccount);
+
+  document.getElementById('donor-tab').style.display = currentUser.role === 1 ? 'block' : 'none';
+  document.getElementById('agency-tab').style.display = currentUser.role === 2 ? 'block' : 'none';
+  document.getElementById('arbiter-tab').style.display = isArbiter ? 'block' : 'none';
+}
+
+async function registerUser() {
+  const name = document.getElementById('reg-name').value.trim();
+  const role = parseInt(document.getElementById('reg-role').value, 10);
+  const alertEl = document.getElementById('reg-alert');
+
+  if (!name) {
+    showAlert(alertEl, 'error', 'Please enter your name.');
+    return;
+  }
+
+  try {
+    const existing = await contract.users(currentAccount);
+    if (existing.registered) {
+      showAlert(alertEl, 'error', 'This wallet is already registered.');
+      return;
+    }
+    showAlert(alertEl, 'info', 'Submitting registration. Confirm in MetaMask.');
+    const tx = await contract.register(name, role);
+    await tx.wait();
+    showAlert(alertEl, 'success', 'Registration successful. Reloading dashboard...');
+    setTimeout(() => location.reload(), 1200);
+  } catch (e) {
+    showAlert(alertEl, 'error', e.reason || e.message);
+  }
+}
+
+async function loadMissions() {
+  if (!contract) return;
+  try {
+    const count = (await contract.missionCount()).toNumber();
+    const missions = [];
+    for (let i = 0; i < count; i++) {
+      const m = await contract.getMission(i);
+      missions.push({
+        id: m.id.toNumber(),
+        category: m.category,
+        region: m.region,
+        maxBudgetWei: m.maxBudget,
+        maxBudget: ethers.utils.formatEther(m.maxBudget),
+        donor: m.donor,
+        selectedAgency: m.selectedAgency,
+        selectedPledgeWei: m.selectedPledge,
+        selectedPledge: ethers.utils.formatEther(m.selectedPledge),
+        escrowedAmountWei: m.escrowedAmount,
+        escrowedAmount: ethers.utils.formatEther(m.escrowedAmount),
+        status: Number(m.status),
+        escrowDeposited: m.escrowDeposited,
+        deliveredByAgency: m.deliveredByAgency,
+        pledgeCount: m.pledgeCount.toNumber()
+      });
+    }
+    missions.sort((a, b) => parseFloat(b.maxBudget) - parseFloat(a.maxBudget));
+    allMissions = missions;
+    populateRegionFilter();
+    renderMissions();
+
+    if (currentUser?.role === 1) await loadDonorMissions();
+    if (currentUser?.role === 2) {
+      await loadAgencyMissions();
+      await loadAgencyActiveMissions();
+    }
+    if (currentUser?.isArbiter) await loadDisputedMissions();
+  } catch (e) {
+    document.getElementById('missions-list').innerHTML = `<div class="alert alert-error">${e.message}</div>`;
+  }
+}
+
+function populateRegionFilter() {
+  const sel = document.getElementById('filter-region');
+  const current = sel.value;
+  const regions = [...new Set(allMissions.map(m => m.region).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  sel.innerHTML = '<option value="">All Regions</option>' + regions.map(r => `<option>${r}</option>`).join('');
+  sel.value = current && regions.includes(current) ? current : '';
+}
+
+function renderMissions() {
+  const category = document.getElementById('filter-category').value;
+  const region = document.getElementById('filter-region').value;
+  const pending = allMissions.filter(m => m.status === 0);
+  const filtered = pending.filter(m => {
+    if (category && m.category !== category) return false;
+    if (region && m.region !== region) return false;
+    return true;
+  });
+
+  const el = document.getElementById('missions-list');
+  if (!filtered.length) {
+    el.innerHTML = '<div class="loading">No pending missions matched your filters.</div>';
+    return;
+  }
+
+  el.innerHTML = filtered.map(m => `
+    <div class="card mission-card" style="margin:0.55rem 0;">
+      <div class="flex-between">
+        <div>
+          <strong>Mission #${m.id}</strong> — ${m.category}
+          <span class="badge ${STATUS_BADGES[m.status]}" style="margin-left:0.5rem;">${STATUS_LABELS[m.status]}</span>
+        </div>
+        <div style="font-size:0.85rem; color:#94a3b8;">Max Budget: <strong style="color:#38bdf8;">${m.maxBudget} ETH</strong></div>
+      </div>
+      <div class="small" style="margin-top:0.45rem;">
+        Region: <strong style="color:#e2e8f0;">${m.region}</strong> | Donor: ${shortAddr(m.donor)} | Pledges: ${m.pledgeCount}
+      </div>
+    </div>
+  `).join('');
+}
+
+async function postMission() {
+  const category = document.getElementById('mission-category').value;
+  const region = document.getElementById('mission-region').value.trim();
+  const budgetEth = document.getElementById('mission-budget').value;
+  const alertEl = document.getElementById('post-alert');
+
+  if (!region) {
+    showAlert(alertEl, 'error', 'Region is required.');
+    return;
+  }
+  if (!budgetEth || parseFloat(budgetEth) <= 0) {
+    showAlert(alertEl, 'error', 'Enter a valid max budget above 0 ETH.');
+    return;
+  }
+
+  try {
+    const budgetWei = ethers.utils.parseEther(budgetEth);
+    showAlert(alertEl, 'info', 'Posting mission. Confirm in MetaMask.');
+    const tx = await contract.postMission(category, region, budgetWei);
+    await tx.wait();
+    showAlert(alertEl, 'success', 'Mission posted successfully.');
+    document.getElementById('mission-region').value = '';
+    document.getElementById('mission-budget').value = '';
+    await loadMissions();
+  } catch (e) {
+    showAlert(alertEl, 'error', e.reason || e.message);
+  }
+}
+
+async function loadDonorMissions() {
+  const el = document.getElementById('donor-missions-list');
+  const mine = allMissions.filter(m => m.donor.toLowerCase() === currentAccount.toLowerCase());
+
+  if (!mine.length) {
+    el.innerHTML = '<div class="loading">No missions posted yet.</div>';
+    return;
+  }
+
+  el.innerHTML = mine.map(m => {
+    let actions = '';
+    if (m.status === 0) {
+      actions = `<button class="btn btn-primary" onclick="viewPledges(${m.id})" style="font-size:0.8rem; padding:0.4rem 0.8rem;">👁 View Pledges (${m.pledgeCount})</button>`;
+    } else if (m.status === 1 && !m.deliveredByAgency) {
+      actions = '<span class="badge badge-transit">Funds in escrow — waiting for agency delivery mark</span>';
+    } else if (m.status === 1 && m.deliveredByAgency) {
+      actions = `
+        <button class="btn btn-success" onclick="approveDelivery(${m.id})" style="font-size:0.8rem; padding:0.4rem 0.8rem;">✅ Approve Delivery</button>
+        <button class="btn btn-danger" onclick="raiseDispute(${m.id})" style="font-size:0.8rem; padding:0.4rem 0.8rem;">⚠️ Dispute</button>`;
+    } else if (m.status === 2) {
+      actions = '<span class="badge badge-delivered">Completed successfully</span>';
+    } else if (m.status === 3) {
+      actions = '<span class="badge badge-disputed">Under arbiter review</span>';
+    } else if (m.status === 4) {
+      actions = '<span class="badge badge-resolved">Resolved</span>';
+    }
+
+    return `
+      <div class="card mission-card" style="margin:0.5rem 0;">
+        <div class="flex-between">
+          <div>
+            <strong>Mission #${m.id}</strong> — ${m.category}
+            <span class="badge ${STATUS_BADGES[m.status]}" style="margin-left:0.5rem;">${STATUS_LABELS[m.status]}</span>
+            ${m.escrowDeposited ? '<span class="badge badge-escrow" style="margin-left:0.5rem;">💰 Funds in Escrow</span>' : ''}
+            ${m.deliveredByAgency && m.status === 1 ? '<span class="badge badge-warn" style="margin-left:0.5rem;">Agency marked delivered</span>' : ''}
+          </div>
+          <div style="font-size:0.85rem; color:#94a3b8;">Max: <strong style="color:#38bdf8;">${m.maxBudget} ETH</strong></div>
+        </div>
+        <div class="small" style="margin-top:0.45rem;">Region: <strong style="color:#e2e8f0;">${m.region}</strong> | Pledges: ${m.pledgeCount}${m.selectedAgency !== ZERO_ADDRESS ? ` | Agency: ${shortAddr(m.selectedAgency)}` : ''}</div>
+        <div class="flex" style="margin-top:0.85rem;">${actions}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function viewPledges(missionId) {
+  document.getElementById('pledges-modal-mission-id').textContent = missionId;
+  document.getElementById('pledges-modal').style.display = 'flex';
+  const content = document.getElementById('pledges-modal-content');
+  content.innerHTML = '<div class="loading">Loading pledges...</div>';
+
+  try {
+    const mission = allMissions.find(m => m.id === missionId);
+    if (!mission || mission.pledgeCount === 0) {
+      content.innerHTML = '<div class="loading">No pledges received yet.</div>';
+      return;
+    }
+
+    let html = '';
+    for (let i = 0; i < mission.pledgeCount; i++) {
+      const p = await contract.getPledge(missionId, i);
+      const ag = await contract.users(p.agency);
+      const amountEth = ethers.utils.formatEther(p.amount);
+      html += `
+        <div class="pledge-item">
+          <div>
+            <div><strong>${ag.name}</strong> — Rep: <span class="rep-score">${ag.reputation.toNumber()}</span></div>
+            <div class="small">${p.agency}</div>
+            <div style="color:#38bdf8; font-weight:700;">${amountEth} ETH</div>
+          </div>
+          <button class="btn btn-success" onclick="fundMission(${missionId}, ${i}, '${amountEth}')">💰 Fund Mission</button>
+        </div>
+      `;
+    }
+    content.innerHTML = html;
+  } catch (e) {
+    content.innerHTML = `<div class="alert alert-error">${e.reason || e.message}</div>`;
+  }
+}
+
+async function fundMission(missionId, pledgeIndex, amountEth) {
+  if (!confirm(`Fund Mission #${missionId} with exactly ${amountEth} ETH using this agency pledge?`)) return;
+  try {
+    const amountWei = ethers.utils.parseEther(amountEth);
+    const tx = await contract.fundMission(missionId, pledgeIndex, { value: amountWei });
+    await tx.wait();
+    alert('Mission funded successfully and funds are now in escrow.');
+    closePledgesModal();
+    await loadMissions();
+  } catch (e) {
+    alert(e.reason || e.message);
+  }
+}
+
+
+async function approveDelivery(missionId) {
+  if (!confirm(`Approve delivery for Mission #${missionId}? This releases the escrowed payment to the agency.`)) return;
+  try {
+    const tx = await contract.approveDelivery(missionId);
+    await tx.wait();
+    alert('Delivery approved and payout completed.');
+    await loadMissions();
+  } catch (e) {
+    alert(e.reason || e.message);
+  }
+}
+
+async function raiseDispute(missionId) {
+  if (!confirm(`Raise a dispute for Mission #${missionId}? The UN Arbiter will resolve it.`)) return;
+  try {
+    const tx = await contract.raiseDispute(missionId);
+    await tx.wait();
+    alert('Dispute raised successfully.');
+    await loadMissions();
+  } catch (e) {
+    alert(e.reason || e.message);
+  }
+}
+
+async function loadAgencyMissions() {
+  const el = document.getElementById('agency-missions-list');
+  const rep = currentUser?.reputation ?? 0;
+  const pending = allMissions.filter(m => m.status === 0);
+
+  if (!pending.length) {
+    el.innerHTML = '<div class="loading">No pending missions right now.</div>';
+    return;
+  }
+
+  el.innerHTML = pending.map(m => `
+    <div class="card mission-card" style="margin:0.5rem 0;">
+      <div class="flex-between">
+        <div><strong>Mission #${m.id}</strong> — ${m.category} <span class="badge badge-pending" style="margin-left:0.5rem;">Pending</span></div>
+        <div>Max: <strong style="color:#38bdf8;">${m.maxBudget} ETH</strong></div>
+      </div>
+      <div class="small" style="margin:0.4rem 0;">Region: <strong style="color:#e2e8f0;">${m.region}</strong> | Donor: ${shortAddr(m.donor)} | Pledges: ${m.pledgeCount}</div>
+      ${rep < 40
+        ? '<div class="alert alert-error" style="font-size:0.82rem; padding:0.5rem; margin-top:0.6rem;">Reputation below 40 — pledge disabled.</div>'
+        : `<button class="btn btn-primary" onclick="openPledgeModal(${m.id})" style="font-size:0.8rem; margin-top:0.5rem;">💰 Submit Pledge</button>`}
+    </div>
+  `).join('');
+}
+
+async function loadAgencyActiveMissions() {
+  const el = document.getElementById('agency-active-list');
+  const mine = allMissions.filter(m => m.selectedAgency.toLowerCase() === currentAccount.toLowerCase() && m.status === 1);
+
+  if (!mine.length) {
+    el.innerHTML = '<div class="loading">No funded missions assigned to you.</div>';
+    return;
+  }
+
+  el.innerHTML = mine.map(m => `
+    <div class="card mission-card" style="margin:0.5rem 0;">
+      <div class="flex-between">
+        <div>
+          <strong>Mission #${m.id}</strong> — ${m.category}
+          <span class="badge badge-transit" style="margin-left:0.5rem;">In Transit</span>
+          ${m.deliveredByAgency ? '<span class="badge badge-warn" style="margin-left:0.5rem;">Marked delivered</span>' : ''}
+        </div>
+        <div>Your Bid: <strong style="color:#38bdf8;">${m.selectedPledge} ETH</strong></div>
+      </div>
+      <div class="small" style="margin:0.4rem 0;">Region: <strong style="color:#e2e8f0;">${m.region}</strong> | Donor: ${shortAddr(m.donor)}</div>
+      <button class="btn btn-success" onclick="markDelivered(${m.id})" ${m.deliveredByAgency ? 'disabled' : ''} style="font-size:0.8rem; margin-top:0.5rem;">📦 Mark as Delivered</button>
+    </div>
+  `).join('');
+}
+
+function openPledgeModal(missionId) {
+  activePledgeMissionId = missionId;
+  const mission = allMissions.find(m => m.id === missionId);
+  document.getElementById('pledge-mission-id').textContent = missionId;
+  document.getElementById('pledge-region').textContent = mission.region;
+  document.getElementById('pledge-max-budget').textContent = mission.maxBudget;
+  document.getElementById('pledge-amount').value = '';
+  document.getElementById('pledge-alert').innerHTML = '';
+  document.getElementById('pledge-modal').style.display = 'flex';
+}
+
+function closePledgeModal() { document.getElementById('pledge-modal').style.display = 'none'; }
+function closePledgesModal() { document.getElementById('pledges-modal').style.display = 'none'; }
+
+async function submitPledge() {
+  const amount = document.getElementById('pledge-amount').value;
+  const alertEl = document.getElementById('pledge-alert');
+  const mission = allMissions.find(m => m.id === activePledgeMissionId);
+
+  if (!amount || parseFloat(amount) <= 0) {
+    showAlert(alertEl, 'error', 'Enter a valid amount.');
+    return;
+  }
+  if (parseFloat(amount) > parseFloat(mission.maxBudget)) {
+    showAlert(alertEl, 'error', `Your bid cannot exceed the mission max budget of ${mission.maxBudget} ETH.`);
+    return;
+  }
+  if ((currentUser?.reputation ?? 0) < 40) {
+    showAlert(alertEl, 'error', 'Your reputation is below 40. Pledging is disabled.');
+    return;
+  }
+
+  try {
+    const amountWei = ethers.utils.parseEther(amount);
+    showAlert(alertEl, 'info', 'Submitting pledge. Confirm in MetaMask.');
+    const tx = await contract.pledgeToMission(activePledgeMissionId, amountWei);
+    await tx.wait();
+    showAlert(alertEl, 'success', 'Pledge submitted successfully.');
+    setTimeout(async () => {
+      closePledgeModal();
+      await loadMissions();
+    }, 900);
+  } catch (e) {
+    showAlert(alertEl, 'error', e.reason || e.message);
+  }
+}
+
+async function markDelivered(missionId) {
+  if (!confirm(`Mark Mission #${missionId} as delivered?`)) return;
+  try {
+    const tx = await contract.markDelivered(missionId);
+    await tx.wait();
+    alert('Mission marked delivered. Waiting for donor approval or dispute.');
+    await loadMissions();
+  } catch (e) {
+    alert(e.reason || e.message);
+  }
+}
+
+async function loadDisputedMissions() {
+  const el = document.getElementById('disputed-list');
+  const disputed = allMissions.filter(m => m.status === 3);
+
+  if (!disputed.length) {
+    el.innerHTML = '<div class="loading">No disputed missions.</div>';
+  } else {
+    el.innerHTML = disputed.map(m => `
+      <div class="card mission-card disputed" style="margin:0.5rem 0;">
+        <div class="flex-between">
+          <div><strong>Mission #${m.id}</strong> — ${m.category} <span class="badge badge-disputed" style="margin-left:0.5rem;">Disputed</span></div>
+          <div>Escrow: <strong style="color:#ef4444;">${m.escrowedAmount} ETH</strong></div>
+        </div>
+        <div class="small" style="margin:0.4rem 0;">Region: <strong style="color:#e2e8f0;">${m.region}</strong> | Donor: ${shortAddr(m.donor)} | Agency: ${shortAddr(m.selectedAgency)}</div>
+        <div class="flex" style="margin-top:0.8rem;">
+          <button class="btn btn-danger" onclick="resolveDispute(${m.id}, true)" style="font-size:0.8rem;">🔴 Outcome A: Refund Donor / Penalize Agency</button>
+          <button class="btn btn-success" onclick="resolveDispute(${m.id}, false)" style="font-size:0.8rem;">🟢 Outcome B: Pay Agency / False Alarm</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  try {
+    const fees = await contract.collectedFees();
+    document.getElementById('treasury-balance').textContent = `${ethers.utils.formatEther(fees)} ETH`;
+  } catch (e) {}
+}
+
+async function resolveDispute(missionId, agencyFault) {
+  const msg = agencyFault ? 'refund the donor and penalize the agency' : 'pay the agency (false alarm)';
+  if (!confirm(`Resolve Mission #${missionId}: ${msg}?`)) return;
+  try {
+    const tx = await contract.resolveDispute(missionId, agencyFault);
+    await tx.wait();
+    alert('Dispute resolved.');
+    await loadMissions();
+  } catch (e) {
+    alert(e.reason || e.message);
+  }
+}
+
+async function withdrawFees() {
+  const input = document.getElementById('withdraw-fees-amount');
+  const alertEl = document.getElementById('withdraw-alert');
+  const value = input.value;
+  if (!value || parseFloat(value) <= 0) {
+    showAlert(alertEl, 'error', 'Enter a valid withdrawal amount.');
+    return;
+  }
+  try {
+    const amountWei = ethers.utils.parseEther(value);
+    showAlert(alertEl, 'info', 'Submitting fee withdrawal. Confirm in MetaMask.');
+    const tx = await contract.withdrawFees(amountWei);
+    await tx.wait();
+    input.value = '';
+    showAlert(alertEl, 'success', 'Fee withdrawal completed.');
+    await loadDisputedMissions();
+  } catch (e) {
+    showAlert(alertEl, 'error', e.reason || e.message);
+  }
+}
+
+async function withdrawAllFees() {
+  const alertEl = document.getElementById('withdraw-alert');
+  try {
+    const fees = await contract.collectedFees();
+    if (fees.isZero()) {
+      showAlert(alertEl, 'error', 'No fees available to withdraw.');
+      return;
+    }
+    showAlert(alertEl, 'info', 'Submitting full fee withdrawal. Confirm in MetaMask.');
+    const tx = await contract.withdrawFees(fees);
+    await tx.wait();
+    showAlert(alertEl, 'success', 'All collected fees withdrawn.');
+    await loadDisputedMissions();
+  } catch (e) {
+    showAlert(alertEl, 'error', e.reason || e.message);
+  }
+}
+
+let listenersAttached = false;
+function setupEventListeners() {
+  if (!contract || listenersAttached) return;
+  listenersAttached = true;
+
+  const refresh = async () => {
+    try {
+      await loadUserInfo();
+      await loadMissions();
+    } catch (_) {}
+  };
+
+  [
+    'UserRegistered',
+    'MissionPosted',
+    'Pledged',
+    'MissionFunded',
+    'DeliveredMarked',
+    'DeliveryApproved',
+    'MissionDisputed',
+    'DisputeResolved',
+    'FeesWithdrawn'
+  ].forEach(evt => contract.on(evt, refresh));
+}
+
+function showTab(tabId, tabEl) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(tabId).classList.add('active');
+  tabEl.classList.add('active');
+
+  if (tabId === 'donor-panel') loadDonorMissions();
+  if (tabId === 'agency-panel') { loadAgencyMissions(); loadAgencyActiveMissions(); }
+  if (tabId === 'arbiter-panel') loadDisputedMissions();
+}
+</script>
+</body>
+</html>
