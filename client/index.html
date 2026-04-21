@@ -252,7 +252,7 @@ h2 { color: #38bdf8; margin-bottom: 0.5rem; }
 </div>
 
 <script>
-const CONTRACT_ADDRESS = "PASTE_DEPLOYED_CONTRACT_ADDRESS_HERE";
+const CONTRACT_ADDRESS = "0x3351eFc2b2D18C2e2c4c33018aAe01E21BeADA63";
 
 const CONTRACT_ABI = [
   {"anonymous":false,"inputs":[{"indexed":true,"internalType":"uint256","name":"missionId","type":"uint256"},{"indexed":true,"internalType":"address","name":"donor","type":"address"},{"indexed":false,"internalType":"string","name":"category","type":"string"},{"indexed":false,"internalType":"string","name":"region","type":"string"},{"indexed":false,"internalType":"uint256","name":"maxBudget","type":"uint256"}],"name":"MissionPosted","type":"event"},
@@ -324,8 +324,16 @@ async function connectWallet() {
     document.getElementById('app').style.display = 'block';
     document.getElementById('status-bar').textContent = `✅ Connected: ${currentAccount} | Network: Ganache / MetaMask`;
 
-    await loadUserInfo();
-    await loadMissions();
+    try {
+      await loadUserInfo();
+      await loadMissions();
+    } catch (contractErr) {
+      document.getElementById('status-bar').textContent =
+        '⚠️ Contract unreachable — redeploy with truffle migrate --reset, then update CONTRACT_ADDRESS in this file.';
+      document.getElementById('missions-list').innerHTML =
+        '<div class="alert alert-error">Cannot connect to contract. Deploy the contract and paste the new address into CONTRACT_ADDRESS at the top of the &lt;script&gt; block in client/index.html.</div>';
+      return;
+    }
     setupEventListeners();
 
     window.ethereum.on('accountsChanged', () => location.reload());
@@ -844,6 +852,15 @@ function showTab(tabId, tabEl) {
   if (tabId === 'agency-panel') { loadAgencyMissions(); loadAgencyActiveMissions(); }
   if (tabId === 'arbiter-panel') loadDisputedMissions();
 }
+
+// Auto-reconnect after page reloads (e.g. after registration tx confirms)
+window.addEventListener('load', async () => {
+  if (!window.ethereum) return;
+  try {
+    const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+    if (accounts.length > 0) await connectWallet();
+  } catch (_) {}
+});
 </script>
 </body>
 </html>
