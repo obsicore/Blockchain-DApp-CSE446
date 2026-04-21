@@ -287,11 +287,80 @@ let currentAccount = null;
 let currentUser = null;
 let allMissions = [];
 let activePledgeMissionId = null;
+let metamaskListenersAttached = false;
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const STATUS_LABELS = ["Pending","In Transit","Delivered","Disputed","Resolved"];
 const STATUS_BADGES = ["badge-pending","badge-transit","badge-delivered","badge-disputed","badge-resolved"];
 const ROLE_LABELS = ["None","Donor","Relief Agency","UN Arbiter"];
+
+function resetAppState() {
+  currentUser = null;
+  allMissions = [];
+  activePledgeMissionId = null;
+
+  document.getElementById('pledge-modal').style.display = 'none';
+  document.getElementById('pledges-modal').style.display = 'none';
+
+  document.getElementById('register-section').style.display = 'none';
+  document.getElementById('user-info').style.display = 'none';
+  document.getElementById('donor-tab').style.display = 'none';
+  document.getElementById('agency-tab').style.display = 'none';
+  document.getElementById('arbiter-tab').style.display = 'none';
+
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.getElementById('mission-feed').classList.add('active');
+  document.querySelectorAll('#main-tabs .tab').forEach(t => t.classList.remove('active'));
+  document.querySelector('#main-tabs .tab').classList.add('active');
+
+  document.getElementById('missions-list').innerHTML = '<div class="loading">Loading missions...</div>';
+  document.getElementById('donor-missions-list').innerHTML = '<div class="loading">Loading...</div>';
+  document.getElementById('agency-missions-list').innerHTML = '<div class="loading">Loading...</div>';
+  document.getElementById('agency-active-list').innerHTML = '<div class="loading">Loading...</div>';
+  document.getElementById('disputed-list').innerHTML = '<div class="loading">Loading...</div>';
+
+  ['reg-alert','post-alert','pledge-alert','withdraw-alert'].forEach(id => {
+    document.getElementById(id).innerHTML = '';
+  });
+  document.getElementById('treasury-balance').textContent = '-- ETH';
+}
+
+async function handleAccountChange(newAccounts) {
+  if (newAccounts.length === 0) {
+    currentAccount = null;
+    if (contract) { contract.removeAllListeners(); }
+    listenersAttached = false;
+    document.getElementById('app').style.display = 'none';
+    document.getElementById('not-connected').style.display = 'block';
+    document.getElementById('connectBtn').textContent = '🦊 Connect MetaMask';
+    document.getElementById('status-bar').textContent = 'Not connected. Connect MetaMask to continue.';
+    resetAppState();
+    return;
+  }
+
+  document.getElementById('status-bar').textContent = '🔄 Account changed, refreshing dashboard...';
+
+  if (contract) { contract.removeAllListeners(); }
+  listenersAttached = false;
+
+  provider = new ethers.providers.Web3Provider(window.ethereum);
+  signer = provider.getSigner();
+  currentAccount = newAccounts[0];
+  contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+
+  document.getElementById('connectBtn').textContent = `${currentAccount.slice(0,6)}...${currentAccount.slice(-4)}`;
+  document.getElementById('status-bar').textContent = `✅ Connected: ${currentAccount} | Network: Ganache / MetaMask`;
+
+  resetAppState();
+
+  try {
+    await loadUserInfo();
+    await loadMissions();
+    setupEventListeners();
+  } catch (e) {
+    document.getElementById('status-bar').textContent = `⚠️ Error loading account data: ${e.message}`;
+  }
+}
 
 function shortAddr(addr) {
   if (!addr || addr === ZERO_ADDRESS) return "--";
@@ -336,8 +405,11 @@ async function connectWallet() {
     }
     setupEventListeners();
 
-    window.ethereum.on('accountsChanged', () => location.reload());
-    window.ethereum.on('chainChanged', () => location.reload());
+    if (!metamaskListenersAttached) {
+      metamaskListenersAttached = true;
+      window.ethereum.on('accountsChanged', handleAccountChange);
+      window.ethereum.on('chainChanged', () => location.reload());
+    }
   } catch (e) {
     alert(`Connection failed: ${e.message}`);
   }
